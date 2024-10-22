@@ -27,10 +27,12 @@ typedef enum
 
 class h265Parser{
 private:
-	streamBuffer m_h265_buffer;
+	streamBuffer   *m_h265_buffer;
 
 	int m_start_code_size;
 public:
+    h265Parser();
+    ~h265Parser();
 	int h265_parser(unsigned char * buffer, unsigned int bufferlen,HEVCParser::stHDRMetadata & h264info);
 	void h265_init(unsigned char * buffer, unsigned int bufferlen);
 	void h265_uinit();
@@ -38,17 +40,17 @@ public:
 	int m_isSps;
 private:
 	int h265_parser_sps(unsigned char * buffer, unsigned int bufferlen);
-	void h265_parse_ptl(uint32_t max_sub_layers_minus1,unsigned char * buffer,unsigned int &StartBit,unsigned int bufLen);
-	void h265_parse_scaling_list(unsigned char * buffer,unsigned int &StartBit,unsigned int bufLen);
-	void h265_parse_vui(unsigned char * buffer,unsigned int &StartBit,unsigned int bufLen);
+	void h265_parse_ptl(uint32_t max_sub_layers_minus1,unsigned char * buffer,unsigned int *StartBit,unsigned int bufLen);
+	void h265_parse_scaling_list(unsigned char * buffer,unsigned int *StartBit,unsigned int bufLen);
+	void h265_parse_vui(unsigned char * buffer,unsigned int *StartBit,unsigned int bufLen);
 
 	int h265_parser_sei(unsigned char * buffer, unsigned int bufferlen);
-	int h265_sei_message(unsigned char * buf,unsigned int &StartBit);
-	int h265_sei_playload(int payload_type,unsigned char * buf,unsigned int &StartBit);
-	int h265_mastering_display_colour_volume(unsigned char * buf,unsigned int &StartBit);
-	int h265_content_light_level_info(unsigned char * buf,unsigned int &StartBit);
-	int h265_active_parameter_sets(unsigned char * buf,unsigned int &StartBit);
-	int h265_decode_nal_sei_decoded_picture_hash(unsigned char * buf,unsigned int &StartBit);
+	int h265_sei_message(unsigned char * buf,unsigned int *StartBit);
+	int h265_sei_playload(int payload_type,unsigned char * buf,unsigned int *StartBit);
+	int h265_mastering_display_colour_volume(unsigned char * buf,unsigned int *StartBit);
+	int h265_content_light_level_info(unsigned char * buf,unsigned int *StartBit);
+	int h265_active_parameter_sets(unsigned char * buf,unsigned int *StartBit);
+	int h265_decode_nal_sei_decoded_picture_hash(unsigned char * buf,unsigned int *StartBit);
 	int h265_GetAnnexbNALU (NALU_t *nalu);
 };
 

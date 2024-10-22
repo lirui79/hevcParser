@@ -10,6 +10,16 @@
 #include "h265Parser.h"
 #include "parser_util.h"
 
+h265Parser::h265Parser() {
+    m_h265_buffer = (streamBuffer*) malloc(sizeof(streamBuffer));
+    memset(m_h265_buffer, 0, sizeof(streamBuffer));
+}
+
+h265Parser::~h265Parser() {
+    if (m_h265_buffer != NULL) 
+        free(m_h265_buffer);
+    m_h265_buffer = NULL;
+}
 
 int h265Parser::h265_parser(unsigned char * buffer, unsigned int bufferlen,HEVCParser::stHDRMetadata & h264info){
 	h265_uinit();
@@ -39,7 +49,7 @@ int h265Parser::h265_parser(unsigned char * buffer, unsigned int bufferlen,HEVCP
 	printf("-----+---------+--------+-------+---------+\n");
 #endif
 
-	while(m_h265_buffer.length > 0)
+	while(m_h265_buffer->length > 0)
 	{
 		int data_lenth = 0;
 		data_lenth=h265_GetAnnexbNALU(n);
@@ -55,12 +65,12 @@ int h265Parser::h265_parser(unsigned char * buffer, unsigned int bufferlen,HEVCP
 			case H265_NAL_UNIT_PREFIX_SEI:
 			case H265_NAL_UNIT_SUFFIX_SEI:{
 				sprintf(type_str,"SEI");
-				h265_parser_sei(m_h265_buffer.data+(m_h265_buffer.readIdx-data_lenth+m_start_code_size),(data_lenth-m_start_code_size));
+				h265_parser_sei(m_h265_buffer->data+(m_h265_buffer->readIdx-data_lenth+m_start_code_size),(data_lenth-m_start_code_size));
 				break;
 			}
 			case H265_NAL_UNIT_SPS:{
 				sprintf(type_str,"SPS");
-				h265_parser_sps(m_h265_buffer.data+(m_h265_buffer.readIdx-data_lenth+m_start_code_size),(data_lenth-m_start_code_size));
+				h265_parser_sps(m_h265_buffer->data+(m_h265_buffer->readIdx-data_lenth+m_start_code_size),(data_lenth-m_start_code_size));
 				m_isSps = 1;
 				break;
 			}
@@ -141,7 +151,7 @@ int h265Parser::h265_GetAnnexbNALU (NALU_t *nalu){
 	info3 = 0;
 	m_start_code_size = nalu->startcodeprefix_len;
 	while (!StartCodeFound){
-		if (0 == m_h265_buffer.length){
+		if (0 == m_h265_buffer->length){
 			nalu->len = (pos-1)-nalu->startcodeprefix_len;
 			memcpy (nalu->buf, &Buf[nalu->startcodeprefix_len], nalu->len);
 			nalu->forbidden_bit = nalu->buf[0] & 0x80; //1 bit
@@ -151,7 +161,7 @@ int h265Parser::h265_GetAnnexbNALU (NALU_t *nalu){
 			Buf = NULL;
 			return pos-1;
 		}
-		if(m_h265_buffer.length > 0)
+		if(m_h265_buffer->length > 0)
 			Buf[pos++] = get_char (m_h265_buffer);
 		info3 = FindStartCode3(&Buf[pos-4]);
 		if(info3 != 1)
@@ -187,19 +197,19 @@ int h265Parser::h265_GetAnnexbNALU (NALU_t *nalu){
 }
 
 void h265Parser::h265_init(unsigned char * buffer, unsigned int bufferlen){
-	m_h265_buffer.data = buffer;
-	m_h265_buffer.endIdx = bufferlen;
-	m_h265_buffer.readIdx = 0;
-	m_h265_buffer.length = bufferlen;
+	m_h265_buffer->data = buffer;
+	m_h265_buffer->endIdx = bufferlen;
+	m_h265_buffer->readIdx = 0;
+	m_h265_buffer->length = bufferlen;
 	m_isSps = 0;
 }
 
 void h265Parser::h265_uinit(){
 	m_start_code_size = 0;
-	m_h265_buffer.data = NULL;
-	m_h265_buffer.endIdx = 0;
-	m_h265_buffer.readIdx = 0;
-	m_h265_buffer.length = 0;
+	m_h265_buffer->data = NULL;
+	m_h265_buffer->endIdx = 0;
+	m_h265_buffer->readIdx = 0;
+	m_h265_buffer->length = 0;
 }
 
 int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
@@ -225,41 +235,41 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
     bool        sps_sub_layer_ordering_info_present_flag;
     bool        rbsp_stop_one_bit;
 
-    u(16,buffer,StartBit);//nal_unit_header
-    sps_video_parameter_set_id      = u(4,buffer,StartBit);
-    sps_max_sub_layers_minus1       = u(3,buffer,StartBit);
-    sps_temporal_id_nesting_flag    = u(1,buffer,StartBit);
+    bs_read_u(16,buffer, &StartBit);//nal_unit_header
+    sps_video_parameter_set_id      = bs_read_u(4,buffer, &StartBit);
+    sps_max_sub_layers_minus1       = bs_read_u(3,buffer, &StartBit);
+    sps_temporal_id_nesting_flag    = bs_read_u(1,buffer, &StartBit);
 
-    h265_parse_ptl(sps_max_sub_layers_minus1,buffer,StartBit,bufferlen);
+    h265_parse_ptl(sps_max_sub_layers_minus1,buffer, &StartBit,bufferlen);
 
-    sps_seq_parameter_set_id    = Ue(buffer,bufferlen,StartBit);
+    sps_seq_parameter_set_id    = bs_read_ue(buffer,bufferlen, &StartBit);
     //p_sps = &sps[sps_seq_parameter_set_id];
 
-    chroma_format_idc           = Ue(buffer,bufferlen,StartBit);
+    chroma_format_idc           = bs_read_ue(buffer,bufferlen, &StartBit);
 
     if (3 == chroma_format_idc)
     {
-        separate_colour_plane_flag = u(1,buffer,StartBit);
+        separate_colour_plane_flag = bs_read_u(1,buffer, &StartBit);
     }
 
-    pic_width_in_luma_samples   = Ue(buffer,bufferlen,StartBit);
-    pic_height_in_luma_samples  = Ue(buffer,bufferlen,StartBit);
+    pic_width_in_luma_samples   = bs_read_ue(buffer,bufferlen, &StartBit);
+    pic_height_in_luma_samples  = bs_read_ue(buffer,bufferlen, &StartBit);
 
-    conformance_window_flag = u(1,buffer,StartBit);
+    conformance_window_flag = bs_read_u(1,buffer, &StartBit);
 
     if (conformance_window_flag)
     {
-        conf_win_left_offset    = Ue(buffer,bufferlen,StartBit);
-        conf_win_right_offset   = Ue(buffer,bufferlen,StartBit);
-        conf_win_top_offset     = Ue(buffer,bufferlen,StartBit);
-        conf_win_bottom_offset  = Ue(buffer,bufferlen,StartBit);
+        conf_win_left_offset    = bs_read_ue(buffer,bufferlen, &StartBit);
+        conf_win_right_offset   = bs_read_ue(buffer,bufferlen, &StartBit);
+        conf_win_top_offset     = bs_read_ue(buffer,bufferlen, &StartBit);
+        conf_win_bottom_offset  = bs_read_ue(buffer,bufferlen, &StartBit);
     }
 
-    bit_depth_luma_minus8               = Ue(buffer,bufferlen,StartBit);
-    bit_depth_chroma_minus8             = Ue(buffer,bufferlen,StartBit);
-    log2_max_pic_order_cnt_lsb_minus4   = Ue(buffer,bufferlen,StartBit);
+    bit_depth_luma_minus8               = bs_read_ue(buffer,bufferlen, &StartBit);
+    bit_depth_chroma_minus8             = bs_read_ue(buffer,bufferlen, &StartBit);
+    log2_max_pic_order_cnt_lsb_minus4   = bs_read_ue(buffer,bufferlen, &StartBit);
 
-    sps_sub_layer_ordering_info_present_flag = u(1,buffer,StartBit);
+    sps_sub_layer_ordering_info_present_flag = bs_read_u(1,buffer, &StartBit);
 
     int i;
     uint32_t *sps_max_dec_pic_buffering_minus1   = new uint32_t[sps_max_sub_layers_minus1 + 1];
@@ -268,9 +278,9 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
 
     for (i = (sps_sub_layer_ordering_info_present_flag ? 0 : sps_max_sub_layers_minus1); i <= sps_max_sub_layers_minus1; i++ )
     {
-        sps_max_dec_pic_buffering_minus1[i] = Ue(buffer,bufferlen,StartBit);
-        sps_max_num_reorder_pics[i]         = Ue(buffer,bufferlen,StartBit);
-        sps_max_latency_increase_plus1[i]   = Ue(buffer,bufferlen,StartBit);
+        sps_max_dec_pic_buffering_minus1[i] = bs_read_ue(buffer,bufferlen, &StartBit);
+        sps_max_num_reorder_pics[i]         = bs_read_ue(buffer,bufferlen, &StartBit);
+        sps_max_latency_increase_plus1[i]   = bs_read_ue(buffer,bufferlen, &StartBit);
     }
 
     uint32_t log2_min_luma_coding_block_size_minus3;
@@ -281,23 +291,23 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
     uint32_t max_transform_hierarchy_depth_intra;
     bool     scaling_list_enabled_flag;
 
-    log2_min_luma_coding_block_size_minus3      = Ue(buffer,bufferlen,StartBit);
-    log2_diff_max_min_luma_coding_block_size    = Ue(buffer,bufferlen,StartBit);
-    log2_min_transform_block_size_minus2        = Ue(buffer,bufferlen,StartBit);
-    log2_diff_max_min_transform_block_size      = Ue(buffer,bufferlen,StartBit);
-    max_transform_hierarchy_depth_inter         = Ue(buffer,bufferlen,StartBit);
-    max_transform_hierarchy_depth_intra         = Ue(buffer,bufferlen,StartBit);
-    scaling_list_enabled_flag                   = u(1,buffer,StartBit);
+    log2_min_luma_coding_block_size_minus3      = bs_read_ue(buffer,bufferlen, &StartBit);
+    log2_diff_max_min_luma_coding_block_size    = bs_read_ue(buffer,bufferlen, &StartBit);
+    log2_min_transform_block_size_minus2        = bs_read_ue(buffer,bufferlen, &StartBit);
+    log2_diff_max_min_transform_block_size      = bs_read_ue(buffer,bufferlen, &StartBit);
+    max_transform_hierarchy_depth_inter         = bs_read_ue(buffer,bufferlen, &StartBit);
+    max_transform_hierarchy_depth_intra         = bs_read_ue(buffer,bufferlen, &StartBit);
+    scaling_list_enabled_flag                   = bs_read_u(1,buffer, &StartBit);
 
     if (scaling_list_enabled_flag)
     {
         bool sps_scaling_list_data_present_flag;
 
-        sps_scaling_list_data_present_flag = u(1,buffer,StartBit);
+        sps_scaling_list_data_present_flag = bs_read_u(1,buffer, &StartBit);
 
         if (sps_scaling_list_data_present_flag)
         {
-        	h265_parse_scaling_list(buffer,StartBit,bufferlen);
+        	h265_parse_scaling_list(buffer, &StartBit,bufferlen);
         }
     }
 
@@ -310,22 +320,22 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
     uint32_t log2_diff_max_min_pcm_luma_coding_block_size;
     bool pcm_loop_filter_disabled_flag;
 
-    amp_enabled_flag = u(1,buffer,StartBit);
-    sample_adaptive_offset_enabled_flag = u(1,buffer,StartBit);
-    pcm_enabled_flag = u(1,buffer,StartBit);
+    amp_enabled_flag = bs_read_u(1,buffer, &StartBit);
+    sample_adaptive_offset_enabled_flag = bs_read_u(1,buffer, &StartBit);
+    pcm_enabled_flag = bs_read_u(1,buffer, &StartBit);
 
     if (pcm_enabled_flag)
     {
-        pcm_sample_bit_depth_luma_minus1    = u(4,buffer,StartBit);
-        pcm_sample_bit_depth_chroma_minus1  = u(4,buffer,StartBit);
-        log2_min_pcm_luma_coding_block_size_minus3 = Ue(buffer,bufferlen,StartBit);
-        log2_diff_max_min_pcm_luma_coding_block_size = Ue(buffer,bufferlen,StartBit);
-        pcm_loop_filter_disabled_flag       = u(1,buffer,StartBit);
+        pcm_sample_bit_depth_luma_minus1    = bs_read_u(4,buffer, &StartBit);
+        pcm_sample_bit_depth_chroma_minus1  = bs_read_u(4,buffer, &StartBit);
+        log2_min_pcm_luma_coding_block_size_minus3 = bs_read_ue(buffer,bufferlen, &StartBit);
+        log2_diff_max_min_pcm_luma_coding_block_size = bs_read_ue(buffer,bufferlen, &StartBit);
+        pcm_loop_filter_disabled_flag       = bs_read_u(1,buffer, &StartBit);
     }
 
     uint32_t num_short_term_ref_pic_sets = 0;
 
-    num_short_term_ref_pic_sets = Ue(buffer,bufferlen,StartBit);
+    num_short_term_ref_pic_sets = bs_read_ue(buffer,bufferlen, &StartBit);
 
 //    createRPSList(p_sps, num_short_term_ref_pic_sets);
 
@@ -338,14 +348,14 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
 //    	 int abs_delta_rps_minus1 = 0;
 //    	 int delta_rps = 0;
 //    	 if(i){
-//    		 inter_ref_pic_set_prediction_flag = u(1,buffer,StartBit);
+//    		 inter_ref_pic_set_prediction_flag = bs_read_u(1,buffer, &StartBit);
 //    	 }
 //    	 if(inter_ref_pic_set_prediction_flag){
 //    		 if(i == num_short_term_ref_pic_sets){
-//    			 delta_idx_minus1 = Ue(buffer,bufferlen,StartBit);
+//    			 delta_idx_minus1 = bs_read_ue(buffer,bufferlen, &StartBit);
 //    		 }
-//    		 delta_rps_sign = u(1,buffer,StartBit);
-//    		 abs_delta_rps_minus1 = Ue(buffer,bufferlen,StartBit);
+//    		 delta_rps_sign = bs_read_u(1,buffer, &StartBit);
+//    		 abs_delta_rps_minus1 = bs_read_ue(buffer,bufferlen, &StartBit);
 //    	    delta_rps      = (1 - (delta_rps_sign << 1)) * (abs_delta_rps_minus1+1);
 ////            for (i = 0; i <= rps_ridx->num_delta_pocs; i++) {
 ////
@@ -356,13 +366,13 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
 
     bool long_term_ref_pics_present_flag = false;
 
-    long_term_ref_pics_present_flag = u(1,buffer,StartBit);
+    long_term_ref_pics_present_flag = bs_read_u(1,buffer, &StartBit);
 
     if (long_term_ref_pics_present_flag)
     {
         uint32_t num_long_term_ref_pics_sps;
 
-        num_long_term_ref_pics_sps = Ue(buffer,bufferlen,StartBit);
+        num_long_term_ref_pics_sps = bs_read_ue(buffer,bufferlen, &StartBit);
 
         uint32_t *lt_ref_pic_poc_lsb_sps = new uint32_t[num_long_term_ref_pics_sps];
         uint32_t *used_by_curr_pic_lt_sps_flag = new uint32_t[num_long_term_ref_pics_sps];
@@ -370,8 +380,8 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
         for (i = 0; i < num_long_term_ref_pics_sps; i++)
         {
         		int varible = (log2_max_pic_order_cnt_lsb_minus4+4)>16?16:(log2_max_pic_order_cnt_lsb_minus4+4);
-            lt_ref_pic_poc_lsb_sps[i]       = u(varible,buffer,StartBit);
-            used_by_curr_pic_lt_sps_flag[i] = u(1,buffer,StartBit);
+            lt_ref_pic_poc_lsb_sps[i]       = bs_read_u(varible,buffer, &StartBit);
+            used_by_curr_pic_lt_sps_flag[i] = bs_read_u(1,buffer, &StartBit);
         }
     }
 
@@ -379,14 +389,14 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
     bool    strong_intra_smoothing_enabled_flag;
     bool    vui_parameters_present_flag;
 
-    sps_temporal_mvp_enabled_flag       = u(1,buffer,StartBit);
-    strong_intra_smoothing_enabled_flag = u(1,buffer,StartBit);
-    vui_parameters_present_flag         = u(1,buffer,StartBit);
+    sps_temporal_mvp_enabled_flag       = bs_read_u(1,buffer, &StartBit);
+    strong_intra_smoothing_enabled_flag = bs_read_u(1,buffer, &StartBit);
+    vui_parameters_present_flag         = bs_read_u(1,buffer, &StartBit);
 
     if (vui_parameters_present_flag)
     {
         //parse_vui(sps_max_sub_layers_minus1);
-    	h265_parse_vui(buffer,StartBit,bufferlen);
+    	h265_parse_vui(buffer, &StartBit,bufferlen);
     }
 
 //    bool sps_extension_flag = false;
@@ -436,7 +446,7 @@ int h265Parser::h265_parser_sps(unsigned char * buffer, unsigned int bufferlen){
 }
 
 /* profile_tier_level */
-void h265Parser::h265_parse_ptl(uint32_t max_sub_layers_minus1,unsigned char * buffer,unsigned int &StartBit,unsigned int bufLen)
+void h265Parser::h265_parse_ptl(uint32_t max_sub_layers_minus1,unsigned char * buffer,unsigned int *StartBit,unsigned int bufLen)
 {
     unsigned char general_profile_space;
     bool    general_tier_flag;
@@ -458,37 +468,37 @@ void h265Parser::h265_parse_ptl(uint32_t max_sub_layers_minus1,unsigned char * b
     uint32_t i;
     uint32_t j;
 
-    general_profile_space   = u(2,buffer,StartBit);
-    general_tier_flag       = u(1,buffer,StartBit);
-    general_profile_idc     = u(5,buffer,StartBit);
+    general_profile_space   = bs_read_u(2,buffer, StartBit);
+    general_tier_flag       = bs_read_u(1,buffer, StartBit);
+    general_profile_idc     = bs_read_u(5,buffer, StartBit);
 
     for (j = 0; j < 32; j++)
     {
-        general_profile_compatibility_flag[j] = u(1,buffer,StartBit);
+        general_profile_compatibility_flag[j] = bs_read_u(1,buffer, StartBit);
     }
 
-    general_progressive_source_flag     = u(1,buffer,StartBit);
-    general_interlaced_source_flag      = u(1,buffer,StartBit);
-    general_non_packed_constraint_flag  = u(1,buffer,StartBit);
-    general_frame_only_constraint_flag  = u(1,buffer,StartBit);
+    general_progressive_source_flag     = bs_read_u(1,buffer, StartBit);
+    general_interlaced_source_flag      = bs_read_u(1,buffer, StartBit);
+    general_non_packed_constraint_flag  = bs_read_u(1,buffer, StartBit);
+    general_frame_only_constraint_flag  = bs_read_u(1,buffer, StartBit);
 
-    u(16,buffer,StartBit);
-    u(16,buffer,StartBit);
-    u(12,buffer,StartBit);
+    bs_read_u(16,buffer, StartBit);
+    bs_read_u(16,buffer, StartBit);
+    bs_read_u(12,buffer, StartBit);
 
-    general_level_idc = u(8,buffer,StartBit);
+    general_level_idc = bs_read_u(8,buffer, StartBit);
 
     for (i = 0; i < max_sub_layers_minus1; i++)
     {
-        sub_layer_profile_present_flag[i]   = u(1,buffer,StartBit);
-        sub_layer_level_present_flag[i]     = u(1,buffer,StartBit);
+        sub_layer_profile_present_flag[i]   = bs_read_u(1,buffer, StartBit);
+        sub_layer_level_present_flag[i]     = bs_read_u(1,buffer, StartBit);
     }
 
     if (max_sub_layers_minus1 > 0)
     {
         for (i = max_sub_layers_minus1; i < 8; i++)
         {
-        	u(2,buffer,StartBit);
+        	bs_read_u(2,buffer, StartBit);
         }
     }
 
@@ -496,9 +506,9 @@ void h265Parser::h265_parse_ptl(uint32_t max_sub_layers_minus1,unsigned char * b
     {
         if (sub_layer_profile_present_flag[i])
         {
-            sub_layer_profile_space[i]  = u(2,buffer,StartBit);
-            sub_layer_tier_flag[i]      = u(1,buffer,StartBit);
-            sub_layer_profile_idc[i]    = u(5,buffer,StartBit);
+            sub_layer_profile_space[i]  = bs_read_u(2,buffer, StartBit);
+            sub_layer_tier_flag[i]      = bs_read_u(1,buffer, StartBit);
+            sub_layer_profile_idc[i]    = bs_read_u(5,buffer, StartBit);
         }
 
         if (sub_layer_level_present_flag[i])
@@ -508,7 +518,7 @@ void h265Parser::h265_parse_ptl(uint32_t max_sub_layers_minus1,unsigned char * b
 }
 /** decode quantization matrix */
 static uint32_t ScalingList[4][6][64];
-void h265Parser::h265_parse_scaling_list(unsigned char * buffer,unsigned int &StartBit,unsigned int bufLen)
+void h265Parser::h265_parse_scaling_list(unsigned char * buffer,unsigned int *StartBit,unsigned int bufLen)
 {
     int         sizeId;
     int         matrixId;
@@ -519,11 +529,11 @@ void h265Parser::h265_parse_scaling_list(unsigned char * buffer,unsigned int &St
     {
         for (matrixId = 0; matrixId < ( (sizeId == 3) ? 2 : 6 ); matrixId++)
         {
-            scaling_list_pred_mode_flag[sizeId][matrixId] = u(1,buffer,StartBit);
+            scaling_list_pred_mode_flag[sizeId][matrixId] = bs_read_u(1,buffer, StartBit);
 
             if (!scaling_list_pred_mode_flag[sizeId][matrixId])
             {
-                scaling_list_pred_matrix_id_delta[sizeId][matrixId] = Ue(buffer,bufLen,StartBit);
+                scaling_list_pred_matrix_id_delta[sizeId][matrixId] = bs_read_ue(buffer,bufLen, StartBit);
             }
             else
             {
@@ -536,7 +546,7 @@ void h265Parser::h265_parse_scaling_list(unsigned char * buffer,unsigned int &St
 
                 if (sizeId > 1)
                 {
-                    scaling_list_dc_coef_minus8[sizeId - 2][matrixId] = Se(buffer,bufLen,StartBit);
+                    scaling_list_dc_coef_minus8[sizeId - 2][matrixId] = bs_read_se(buffer,bufLen, StartBit);
 
                     nextCoef = scaling_list_dc_coef_minus8[sizeId - 2][matrixId] + 8;
                 }
@@ -546,7 +556,7 @@ void h265Parser::h265_parse_scaling_list(unsigned char * buffer,unsigned int &St
                 {
                     int32_t scaling_list_delta_coef;
 
-                    scaling_list_delta_coef = Se(buffer,bufLen,StartBit);
+                    scaling_list_delta_coef = bs_read_se(buffer,bufLen, StartBit);
                     nextCoef = (nextCoef + scaling_list_delta_coef + 256) % 256;
                     ScalingList[sizeId][matrixId][i] = nextCoef;
                 }
@@ -555,34 +565,34 @@ void h265Parser::h265_parse_scaling_list(unsigned char * buffer,unsigned int &St
     }
 }
 
-void h265Parser::h265_parse_vui(unsigned char * buffer,unsigned int &StartBit,unsigned int bufLen)
+void h265Parser::h265_parse_vui(unsigned char * buffer,unsigned int *StartBit,unsigned int bufLen)
 {
     bool            aspect_ratio_info_present_flag;
    int  aspect_ratio_idc = 0;
     unsigned short int        sar_width;
     unsigned short int        sar_height;
 
-    aspect_ratio_info_present_flag = u(1,buffer,StartBit);
+    aspect_ratio_info_present_flag = bs_read_u(1,buffer, StartBit);
 
     if (aspect_ratio_info_present_flag)
     {
-        aspect_ratio_idc = u(8,buffer,StartBit);
+        aspect_ratio_idc = bs_read_u(8,buffer, StartBit);
 
         if (aspect_ratio_idc == 255)
         {
-            sar_width   = u(16,buffer,StartBit);
-            sar_height  = u(16,buffer,StartBit);
+            sar_width   = bs_read_u(16,buffer, StartBit);
+            sar_height  = bs_read_u(16,buffer, StartBit);
         }
     }
 
     bool overscan_info_present_flag;
     bool overscan_appropriate_flag;
 
-    overscan_info_present_flag = u(1,buffer,StartBit);
+    overscan_info_present_flag = bs_read_u(1,buffer, StartBit);
 
     if (overscan_info_present_flag)
     {
-        overscan_appropriate_flag = u(1,buffer,StartBit);
+        overscan_appropriate_flag = bs_read_u(1,buffer, StartBit);
     }
 
     bool    video_signal_type_present_flag;
@@ -593,21 +603,21 @@ void h265Parser::h265_parse_vui(unsigned char * buffer,unsigned int &StartBit,un
     unsigned char transfer_characteristics;
     unsigned char matrix_coeffs;
 
-    video_signal_type_present_flag = u(1,buffer,StartBit);
+    video_signal_type_present_flag = bs_read_u(1,buffer, StartBit);
 
     if (video_signal_type_present_flag)
     {
-        video_format            = u(3,buffer,StartBit);
-        video_full_range_flag   = u(1,buffer,StartBit);
-        colour_description_present_flag = u(1,buffer,StartBit);
+        video_format            = bs_read_u(3,buffer, StartBit);
+        video_full_range_flag   = bs_read_u(1,buffer, StartBit);
+        colour_description_present_flag = bs_read_u(1,buffer, StartBit);
         m_h265info.video_format = video_format;
         m_h265info.video_full_range_flag = video_full_range_flag;
 
         if (colour_description_present_flag)
         {
-            colour_primaries            = u(8,buffer,StartBit);
-            transfer_characteristics    = u(8,buffer,StartBit);
-            matrix_coeffs               = u(8,buffer,StartBit);
+            colour_primaries            = bs_read_u(8,buffer, StartBit);
+            transfer_characteristics    = bs_read_u(8,buffer, StartBit);
+            matrix_coeffs               = bs_read_u(8,buffer, StartBit);
 
             m_h265info.color_primaries = colour_primaries;
             m_h265info.transfer_characteristics = transfer_characteristics;
@@ -620,12 +630,12 @@ void h265Parser::h265_parse_vui(unsigned char * buffer,unsigned int &StartBit,un
     uint32_t    chroma_sample_loc_type_top_field;
     uint32_t    chroma_sample_loc_type_bottom_field;
 
-    chroma_loc_info_present_flag = u(1,buffer,StartBit);
+    chroma_loc_info_present_flag = bs_read_u(1,buffer, StartBit);
 
     if (chroma_loc_info_present_flag)
     {
-        chroma_sample_loc_type_top_field    = Ue(buffer,bufLen,StartBit);
-        chroma_sample_loc_type_bottom_field = Ue(buffer,bufLen,StartBit);
+        chroma_sample_loc_type_top_field    = bs_read_ue(buffer,bufLen, StartBit);
+        chroma_sample_loc_type_bottom_field = bs_read_ue(buffer,bufLen, StartBit);
         m_h265info.chroma_sample_loc_type_bottom_field = chroma_sample_loc_type_bottom_field;
         m_h265info.chroma_sample_loc_type_top_field = chroma_sample_loc_type_top_field;
     }
@@ -639,17 +649,17 @@ void h265Parser::h265_parse_vui(unsigned char * buffer,unsigned int &StartBit,un
     uint32_t    def_disp_win_top_offset;
     uint32_t    def_disp_win_bottom_offset;
 
-    neutral_chroma_indication_flag  = u(1,buffer,StartBit);
-    field_seq_flag                  = u(1,buffer,StartBit);
-    frame_field_info_present_flag   = u(1,buffer,StartBit);
-    default_display_window_flag     = u(1,buffer,StartBit);
+    neutral_chroma_indication_flag  = bs_read_u(1,buffer, StartBit);
+    field_seq_flag                  = bs_read_u(1,buffer, StartBit);
+    frame_field_info_present_flag   = bs_read_u(1,buffer, StartBit);
+    default_display_window_flag     = bs_read_u(1,buffer, StartBit);
 
     if (default_display_window_flag)
     {
-        def_disp_win_left_offset    = Ue(buffer,bufLen,StartBit);
-        def_disp_win_right_offset   = Ue(buffer,bufLen,StartBit);
-        def_disp_win_top_offset     = Ue(buffer,bufLen,StartBit);
-        def_disp_win_bottom_offset  = Ue(buffer,bufLen,StartBit);
+        def_disp_win_left_offset    = bs_read_ue(buffer,bufLen, StartBit);
+        def_disp_win_right_offset   = bs_read_ue(buffer,bufLen, StartBit);
+        def_disp_win_top_offset     = bs_read_ue(buffer,bufLen, StartBit);
+        def_disp_win_bottom_offset  = bs_read_ue(buffer,bufLen, StartBit);
     }
 
 
@@ -660,22 +670,22 @@ void h265Parser::h265_parse_vui(unsigned char * buffer,unsigned int &StartBit,un
     uint32_t    vui_num_ticks_poc_diff_one_minus1;
     bool        vui_hrd_parameters_present_flag;
 
-    vui_timing_info_present_flag = u(1,buffer,StartBit);
+    vui_timing_info_present_flag = bs_read_u(1,buffer, StartBit);
 
     if (vui_timing_info_present_flag)
     {
-        vui_num_units_in_tick   = u(32,buffer,StartBit);
-        vui_time_scale          = u(32,buffer,StartBit);
-        vui_poc_proportional_to_timing_flag = u(1,buffer,StartBit);
+        vui_num_units_in_tick   = bs_read_u(32,buffer, StartBit);
+        vui_time_scale          = bs_read_u(32,buffer, StartBit);
+        vui_poc_proportional_to_timing_flag = bs_read_u(1,buffer, StartBit);
 
         double fps = (double)vui_time_scale/(double)vui_num_units_in_tick;
 
         if (vui_poc_proportional_to_timing_flag)
         {
-            vui_num_ticks_poc_diff_one_minus1 = Ue(buffer,bufLen,StartBit);
+            vui_num_ticks_poc_diff_one_minus1 = bs_read_ue(buffer,bufLen, StartBit);
         }
 
-        vui_hrd_parameters_present_flag = u(1,buffer,StartBit);
+        vui_hrd_parameters_present_flag = bs_read_u(1,buffer, StartBit);
 
         if (vui_hrd_parameters_present_flag)
         {
@@ -714,56 +724,56 @@ int h265Parser::h265_parser_sei(unsigned char * buffer, unsigned int bufferlen){
 	unsigned int StartBit = 0;
 	de_emulation_prevention(buffer,&bufferlen);
 
-	int byte = u(16,buffer,StartBit);//READ_CODE(8,"NO_USE");
+	int byte = bs_read_u(16,buffer, &StartBit);//READ_CODE(8,"NO_USE");
 
-	return h265_sei_message(buffer,StartBit);
+	return h265_sei_message(buffer, &StartBit);
 }
 
-int h265Parser::h265_sei_message(unsigned char * buf,unsigned int &StartBit){
+int h265Parser::h265_sei_message(unsigned char * buf,unsigned int *StartBit){
 	  int payload_type = 0;
 	  int payload_size = 0;
 	  int byte = 0xFF;
-	  //byte = u(8,buf,StartBit);//READ_CODE(8,"NO_USE");
+	  //byte = bs_read_u(8,buf, &StartBit);//READ_CODE(8,"NO_USE");
 
-	  while (next_bits(8,buf,StartBit) == 0xFF) {
-	      byte          = u(8,buf,StartBit);
+	  while (next_bits(8,buf, StartBit) == 0xFF) {
+	      byte          = bs_read_u(8,buf, StartBit);
 	      payload_type += 255;
 	    }
-	  int last_payload_type_byte = u(8,buf,StartBit);//READ_CODE(8,"last_payload_type_byte");
+	  int last_payload_type_byte = bs_read_u(8,buf, StartBit);//READ_CODE(8,"last_payload_type_byte");
 	  payload_type +=last_payload_type_byte;
-	  while (next_bits(8,buf,StartBit) == 0xFF) {
-	      byte          = u(8,buf,StartBit);
+	  while (next_bits(8,buf, StartBit) == 0xFF) {
+	      byte          = bs_read_u(8,buf, StartBit);
 	      payload_size += 255;
 	    }
-	  int last_playload_size_byte = u(8,buf,StartBit);;//READ_CODE(8,"last_playload_size_byte");
+	  int last_playload_size_byte = bs_read_u(8,buf, StartBit);;//READ_CODE(8,"last_playload_size_byte");
 	  payload_size += last_playload_size_byte;
-	  h265_sei_playload(payload_type,buf,StartBit);
+	  h265_sei_playload(payload_type,buf, StartBit);
 	return 1;
 }
 
-int h265Parser::h265_sei_playload(int payload_type,unsigned char * buf,unsigned int &StartBit){
+int h265Parser::h265_sei_playload(int payload_type,unsigned char * buf,unsigned int *StartBit){
 
 	 switch (payload_type) {
 	 	 case H265_SEI_TYPE_PICTURE_TIMING:break;
 
 	    case H265_SEI_TYPE_ACTIVE_PARAMTER_SETS:
 	   {
-		   h265_active_parameter_sets(buf,StartBit);break;
+		   h265_active_parameter_sets(buf, StartBit);break;
 	    }
 	    case H265_SEI_TYPE_CONTENT_LIGHT_LEVEL_INFO:
 	    {
-	    	h265_content_light_level_info(buf,StartBit);
+	    	h265_content_light_level_info(buf, StartBit);
 	    	break;
 	    }
 	    case H265_SEI_TYPE_MASTERING_DISPLAY_COLOUR_VOLUME:
 	    {
-	    	h265_mastering_display_colour_volume(buf,StartBit);break;
+	    	h265_mastering_display_colour_volume(buf, StartBit);break;
 	    }
 	  }
 	 return payload_type;
 }
 
-int h265Parser::h265_mastering_display_colour_volume(unsigned char * buf,unsigned int &StartBit){
+int h265Parser::h265_mastering_display_colour_volume(unsigned char * buf,unsigned int *StartBit){
 	int  display_primaries_x_r = -1;//2
 	int  display_primaries_y_r = -1;
 	int  display_primaries_x_g = -1;//0
@@ -776,18 +786,18 @@ int h265Parser::h265_mastering_display_colour_volume(unsigned char * buf,unsigne
 
 	int  max_display_mastering_luminance = -1;
 	int  min_display_mastering_luminance = -1;
-	display_primaries_x_g = u(16,buf,StartBit);
-	display_primaries_y_g = u(16,buf,StartBit);
-	display_primaries_x_b = u(16,buf,StartBit);
-	display_primaries_y_b = u(16,buf,StartBit);
-	display_primaries_x_r = u(16,buf,StartBit);
-	display_primaries_y_r = u(16,buf,StartBit);
+	display_primaries_x_g = bs_read_u(16,buf, StartBit);
+	display_primaries_y_g = bs_read_u(16,buf, StartBit);
+	display_primaries_x_b = bs_read_u(16,buf, StartBit);
+	display_primaries_y_b = bs_read_u(16,buf, StartBit);
+	display_primaries_x_r = bs_read_u(16,buf, StartBit);
+	display_primaries_y_r = bs_read_u(16,buf, StartBit);
 
-	white_point_x = u(16,buf,StartBit);
-	white_point_y = u(16,buf,StartBit);
+	white_point_x = bs_read_u(16,buf, StartBit);
+	white_point_y = bs_read_u(16,buf, StartBit);
 
-	max_display_mastering_luminance = u(32,buf,StartBit);
-	min_display_mastering_luminance = u(32,buf,StartBit);
+	max_display_mastering_luminance = bs_read_u(32,buf, StartBit);
+	min_display_mastering_luminance = bs_read_u(32,buf, StartBit);
 
 	m_h265info.displayColorVolume.display_primaries_x_b = display_primaries_x_b;
 	m_h265info.displayColorVolume.display_primaries_x_g = display_primaries_x_g;
@@ -805,22 +815,22 @@ int h265Parser::h265_mastering_display_colour_volume(unsigned char * buf,unsigne
 	return 1;
 }
 
-int h265Parser::h265_content_light_level_info(unsigned char * buf,unsigned int &StartBit) {
+int h265Parser::h265_content_light_level_info(unsigned char * buf,unsigned int *StartBit) {
 	int max_content_light_level = -1;
 	int max_pic_average_light_level = -1;
 
-	max_content_light_level = u(16,buf,StartBit);
-	max_pic_average_light_level = u(16,buf,StartBit);
+	max_content_light_level = bs_read_u(16,buf, StartBit);
+	max_pic_average_light_level = bs_read_u(16,buf, StartBit);
 
 	m_h265info.MaxCLL = max_content_light_level;
 	m_h265info.MaxFall = max_pic_average_light_level;
 	return 1;
 }
 
-int h265Parser::h265_active_parameter_sets(unsigned char * buf,unsigned int &StartBit){
-	int active_video_parameter_set_id = u(4,buf,StartBit);
-	int self_contained_cvs_flag = u(1,buf,StartBit);
-	int no_parameter_set_update_flag = u(1,buf,StartBit);
+int h265Parser::h265_active_parameter_sets(unsigned char * buf,unsigned int *StartBit){
+	int active_video_parameter_set_id = bs_read_u(4,buf, StartBit);
+	int self_contained_cvs_flag = bs_read_u(1,buf, StartBit);
+	int no_parameter_set_update_flag = bs_read_u(1,buf, StartBit);
 	return 1;
 }
 

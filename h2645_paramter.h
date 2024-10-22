@@ -194,11 +194,11 @@ typedef struct H264_SPS {
  * Picture parameter set
  */
 typedef struct H264_PPS {
-	int pic_parameter_set_id;// 1 ue(v)
-	int seq_parameter_set_id;// 1 ue(v)
-	int entropy_coding_mode_flag;// 1 u(1)
-	int pic_order_present_flag;// 1 u(1)
-	int num_slice_groups_minus;// 1 ue(v)num_slice_groups_minus1+1
+	int pic_parameter_set_id;// 1 bs_read_ue(v)
+	int seq_parameter_set_id;// 1 bs_read_ue(v)
+	int entropy_coding_mode_flag;// 1 bs_read_u(1)
+	int pic_order_present_flag;// 1 bs_read_u(1)
+	int num_slice_groups_minus;// 1 bs_read_ue(v)num_slice_groups_minus1+1
 	int slice_group_map_type;
 	int run_length_minus1;//run_length_minus1[ iGroup ]
 	int top_left ;//top_left[ iGroup ]
@@ -208,22 +208,20 @@ typedef struct H264_PPS {
 	int pic_size_in_map_units_minus1;
 	int slice_group_id;//slice_group_id[ i ]
 
-	int num_ref_idx_l0_default_active_minus1;// 1 ue(v)
-	int num_ref_idx_l1_default_active_minus1;// 1 ue(v)
-	int weighted_pred_flag;// 1 u(1)
-	int weighted_bipred_idc;// 1 u(2)
-	int pic_init_qp_minus26;// /* relative to 26 */ 1 se(v)
-	int pic_init_qs_minus26;// /* relative to 26 */ 1 se(v)
-	int chroma_qp_index_offset;// 1 se(v)
-	int deblocking_filter_control_present_flag;// 1 u(1)
-	int constrained_intra_pred_flag;// 1 u(1)
-	int redundant_pic_cnt_present_flag;// 1 u(1)
+	int num_ref_idx_l0_default_active_minus1;// 1 bs_read_ue(v)
+	int num_ref_idx_l1_default_active_minus1;// 1 bs_read_ue(v)
+	int weighted_pred_flag;// 1 bs_read_u(1)
+	int weighted_bipred_idc;// 1 bs_read_u(2)
+	int pic_init_qp_minus26;// /* relative to 26 */ 1 bs_read_se(v)
+	int pic_init_qs_minus26;// /* relative to 26 */ 1 bs_read_se(v)
+	int chroma_qp_index_offset;// 1 bs_read_se(v)
+	int deblocking_filter_control_present_flag;// 1 bs_read_u(1)
+	int constrained_intra_pred_flag;// 1 bs_read_u(1)
+	int redundant_pic_cnt_present_flag;// 1 bs_read_u(1)
 	//TODO:to be continue....
 } H264_PPS;
 
 typedef struct H264ParamSets {
-//	streamBuffer *sps_data[MAX_SPS_COUNT];
-//	streamBuffer *pps_data[MAX_PPS_COUNT];
 	int      spslen;
 	int      ppslen;
 

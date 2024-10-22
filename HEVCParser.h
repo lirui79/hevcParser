@@ -86,7 +86,7 @@ struct stHDRMetadata
 	}
 };
 
-bool Parse(uint8_t * buffer, uint32_t bufferlen,stHDRMetadata & hevcinfo);
+bool Parbs_read_se(uint8_t * buffer, uint32_t bufferlen,stHDRMetadata & hevcinfo);
 
 }
 
